@@ -166,7 +166,7 @@ import java.util.Locale;
  * @attr ref com.google.android.material.R.styleable#Slider_trackColorInactive
  * @attr ref com.google.android.material.R.styleable#Slider_trackHeight
  */
-abstract class BaseSlider<
+public abstract class BaseSlider<
         S extends BaseSlider<S, L, T>,
         L extends BaseOnChangeListener<S>,
         T extends BaseOnSliderTouchListener<S>>
@@ -230,6 +230,7 @@ abstract class BaseSlider<
   // Holds the values set to this slider. We keep this array sorted in order to check if the value
   // has been changed when a new value is set and to find the minimum and maximum values.
   private ArrayList<Float> values = new ArrayList<>();
+  private List<String> labelValues;
   // The index of the currently touched thumb.
   private int activeThumbIdx = -1;
   // The index of the currently focused thumb.
@@ -252,6 +253,7 @@ abstract class BaseSlider<
   public static final int LABEL_FLOATING = 0;
   public static final int LABEL_WITHIN_BOUNDS = 1;
   public static final int LABEL_GONE = 2;
+  public static final int LABEL_FLOATING_ALWAYS_VISIBLE = 3;
   private float touchPosition;
 
   /**
@@ -267,7 +269,7 @@ abstract class BaseSlider<
    *   <li>{@code LABEL_GONE}: The label will never be drawn.
    * </ul>
    */
-  @IntDef({LABEL_FLOATING, LABEL_WITHIN_BOUNDS, LABEL_GONE})
+  @IntDef({LABEL_FLOATING, LABEL_WITHIN_BOUNDS, LABEL_GONE, LABEL_FLOATING_ALWAYS_VISIBLE})
   @Retention(RetentionPolicy.SOURCE)
   public @interface LabelBehavior {}
 
@@ -577,6 +579,12 @@ abstract class BaseSlider<
    */
   public void setValueTo(float valueTo) {
     this.valueTo = valueTo;
+    dirtyConfig = true;
+    postInvalidate();
+  }
+
+  public void setLabelValues(List<String> labelValues) {
+    this.labelValues = labelValues;
     dirtyConfig = true;
     postInvalidate();
   }
@@ -1339,14 +1347,14 @@ abstract class BaseSlider<
       drawTicks(canvas);
     }
 
-    if ((thumbIsPressed || isFocused()) && isEnabled()) {
+//    if ((thumbIsPressed || isFocused()) && isEnabled()) {
       maybeDrawHalo(canvas, trackWidth, top);
 
       // Draw labels if there is an active thumb.
-      if (activeThumbIdx != -1) {
+//      if (activeThumbIdx != -1) {
         ensureLabels();
-      }
-    }
+//      }
+//    }
 
     drawThumbs(canvas, trackWidth, top);
   }
@@ -1535,8 +1543,10 @@ abstract class BaseSlider<
           snapTouchPosition();
           activeThumbIdx = -1;
         }
-        for (TooltipDrawable label : labels) {
-          ViewUtils.getContentViewOverlay(this).remove(label);
+        if (labelBehavior != LABEL_FLOATING_ALWAYS_VISIBLE) {
+          for (TooltipDrawable label : labels) {
+            ViewUtils.getContentViewOverlay(this).remove(label);
+          }
         }
         onStopTrackingTouch();
         invalidate();
@@ -1638,7 +1648,8 @@ abstract class BaseSlider<
 
   private boolean snapThumbToValue(int idx, float value) {
     // Check if the new value equals a value that was already set.
-    if (Math.abs(value - values.get(idx)) < THRESHOLD) {
+//    if (Math.abs(value - values.get(idx)) < THRESHOLD) {
+    if (Math.abs(value - values.get(0)) < THRESHOLD || Math.abs(value - values.get(1)) < THRESHOLD) {
       return false;
     }
 
@@ -1684,7 +1695,11 @@ abstract class BaseSlider<
         continue;
       }
 
-      setValueForLabel(labelItr.next(), values.get(i));
+      if (labelValues != null && labelValues.size() == values.size()) {
+        setLabelValueForLabel(labelItr.next(), values.get(i), labelValues.get(i));
+      } else {
+        setValueForLabel(labelItr.next(), values.get(i));
+      }
     }
 
     if (!labelItr.hasNext()) {
@@ -1694,7 +1709,11 @@ abstract class BaseSlider<
     }
 
     // Now set the label for the focused thumb so it's on top.
-    setValueForLabel(labelItr.next(), values.get(focusedThumbIdx));
+    if (labelValues != null && labelValues.size() == values.size()) {
+      setLabelValueForLabel(labelItr.next(), values.get(focusedThumbIdx), labelValues.get(focusedThumbIdx));
+    } else {
+      setValueForLabel(labelItr.next(), values.get(focusedThumbIdx));
+    }
   }
 
   private String formatValue(float value) {
@@ -1703,6 +1722,25 @@ abstract class BaseSlider<
     } else {
       return String.format((int) value == value ? "%.0f" : "%.2f", value);
     }
+  }
+
+  private void setLabelValueForLabel(TooltipDrawable label, float value, String labelValue) {
+    label.setText(labelValue);
+
+    int left =
+        trackSidePadding
+            + (int) (normalizeValue(value) * trackWidth)
+            - label.getIntrinsicWidth() / 2;
+    int top = calculateTop() - (labelPadding + thumbRadius);
+    label.setBounds(left, top - label.getIntrinsicHeight(), left + label.getIntrinsicWidth(), top);
+
+    // Calculate the difference between the bounds of this view and the bounds of the root view to
+    // correctly position this view in the overlay layer.
+    Rect rect = new Rect(label.getBounds());
+    DescendantOffsetUtils.offsetDescendantRect(ViewUtils.getContentView(this), this, rect);
+    label.setBounds(rect);
+
+    ViewUtils.getContentViewOverlay(this).add(label);
   }
 
   private void setValueForLabel(TooltipDrawable label, float value) {
