@@ -254,6 +254,7 @@ public abstract class BaseSlider<
   public static final int LABEL_WITHIN_BOUNDS = 1;
   public static final int LABEL_GONE = 2;
   public static final int LABEL_FLOATING_ALWAYS_VISIBLE = 3;
+  private boolean hideLabels = false;
   private float touchPosition;
 
   /**
@@ -1231,6 +1232,14 @@ public abstract class BaseSlider<
     invalidate();
   }
 
+  public boolean isHideLabels() {
+    return hideLabels;
+  }
+
+  public void setHideLabels(boolean hideLabels) {
+    this.hideLabels = hideLabels;
+  }
+
   @Override
   public void setEnabled(boolean enabled) {
     super.setEnabled(enabled);
@@ -1682,8 +1691,11 @@ public abstract class BaseSlider<
   }
 
   private void ensureLabels() {
-    if (labelBehavior == LABEL_GONE) {
+    if (labelBehavior == LABEL_GONE || isHideLabels()) {
       // If the label shouldn't be drawn we can skip this.
+      for (TooltipDrawable label : labels) {
+        ViewUtils.getContentViewOverlay(this).remove(label);
+      }
       return;
     }
 
