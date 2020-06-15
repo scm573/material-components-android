@@ -1240,6 +1240,12 @@ public abstract class BaseSlider<
     this.hideLabels = hideLabels;
   }
 
+  public void removeLabels() {
+    for (TooltipDrawable label : labels) {
+      ViewUtils.getContentViewOverlay(this).remove(label);
+    }
+  }
+
   @Override
   public void setEnabled(boolean enabled) {
     super.setEnabled(enabled);
